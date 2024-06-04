@@ -3,16 +3,24 @@ package polynote.kernel.util
 import cats.data.Ior
 import polynote.kernel.{CompileErrors, KernelReport, Pos}
 
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.reflect.internal.util.Position
 import scala.tools.nsc.Settings
-import scala.tools.nsc.reporters.Reporter
+import scala.tools.nsc.reporters.FilteringReporter
 
-case class KernelReporter(settings: Settings) extends Reporter {
+/**
+ * This separate source file is necessary, because the interface for Reporter changed in Scala 2.13
+ */
+case class KernelReporter(settings: Settings) extends FilteringReporter {
 
-  private var _reports = new ListBuffer[KernelReport]()
+  private val _reports = new ListBuffer[KernelReport]()
 
   def display(pos: Position, msg: String, severity: Severity): Unit = _reports.synchronized {
+    _reports += KernelReport(new Pos(pos), msg, severity.id)
+  }
+
+  override def doReport(pos: Position, msg: String, severity: Severity): Unit =  _reports.synchronized {
     _reports += KernelReport(new Pos(pos), msg, severity.id)
   }
 
@@ -25,13 +33,12 @@ case class KernelReporter(settings: Settings) extends Reporter {
 
   def reports: List[KernelReport] = _reports.synchronized(_reports.toList)
 
-  private def captureState = State(reports, INFO.count, WARNING.count, ERROR.count)
+  private def captureState = State(reports, 0, warningCount, errorCount)
   private def restoreState(state: State): Unit = {
-    _reports.clear()
+    reset()
     _reports ++= state.reports
-    INFO.count = state.infos
-    WARNING.count = state.warns
-    ERROR.count = state.warns
+    (0 until state.warns).foreach(_ => increment(WARNING))
+    (0 until state.errs).foreach(_ => increment(ERROR))
   }
 
   def attempt[T](fn: => T): Either[Throwable, T] = _reports.synchronized {
