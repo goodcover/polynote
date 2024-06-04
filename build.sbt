@@ -41,13 +41,13 @@ lazy val nativeLibraryPath = {
 }
 
 val distBuildDir = file(".") / "target" / "dist" / "polynote"
-val scalaVersions = Seq("2.11.12", "2.12.15", "2.13.6")
+val scalaVersions = Seq("2.12.18", "2.13.14")
 lazy val scalaBinaryVersions = scalaVersions.map {
   ver => ver.split('.').take(2).mkString(".")
 }.distinct
 
 val commonSettings = Seq(
-  scalaVersion := "2.12.15",
+  scalaVersion := "2.13.14",
   crossScalaVersions := scalaVersions,
   organization := "org.polynote",
   publishMavenStyle := true,
@@ -91,7 +91,7 @@ val commonSettings = Seq(
     (assembly / assemblyOption).value.copy(includeScala = false)
   },
   Global / cancelable := true,
-  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.10.3"),
+  addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.13.3" cross CrossVersion.full),
   buildUI := {
     sys.process.Process(Seq("npm", "run", "build"), file("./polynote-frontend/")) ! streams.value.log
   },
@@ -176,7 +176,7 @@ val `polynote-kernel` = project.settings(
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-compiler" % scalaVersion.value % "provided",
     "org.scala-lang" % "scala-compiler" % scalaVersion.value % "test",
-    "org.scalameta" % "semanticdb-scalac-core" % "4.6.0" cross CrossVersion.full,
+    "org.scalameta" % "semanticdb-scalac-core" % "4.9.5" cross CrossVersion.full,
     "dev.zio" %% "zio" % versions.zio,
     "dev.zio" %% "zio-streams" % versions.zio,
     "org.scodec" %% "scodec-core" % "1.11.4",
@@ -220,8 +220,8 @@ val `polynote-server` = project.settings(
 
 val sparkVersions = Map(
   "2.11" -> "2.1.1",
-  "2.12" -> "3.1.2",
-  "2.13" -> "3.2.1"
+  "2.12" -> "3.5.1",
+  "2.13" -> "3.5.1"
 )
 
 // keep expected checksums here. This has two benefits over checking the sha512sum from the archive:
@@ -232,7 +232,7 @@ val sparkVersions = Map(
 val sparkChecksums = Map(
   "2.1.1" -> "4b6427ca6dc6f888b21bff9f9a354260af4a0699a1f43caabf58ae6030951ee5fa8b976497aa33de7e4ae55609d47a80bfe66dfc48c79ea28e3e5b03bdaaba11",
   "3.1.2" -> "ba47e074b2a641b23ee900d4e28260baa250e2410859d481b38f2ead888c30daea3683f505608870148cf40f76c357222a2773f1471e7342c622e93bf02479b7",
-  "3.2.1" -> "2ec9f1cb65af5ee7657ca83a1abaca805612b8b3a1d8d9bb67e317106025c81ba8d44d82ad6fdb45bbe6caa768d449cd6a4945ec050ce9390f806f46c5cb1397"
+  "3.5.1" -> "0212e0add3f540aefe1e1c3415e2a1d59b611eab36cbe143476126f01fb90bc3288fcf087b0bf3e6ff7873684c5c1243d526b8f7bac7a1a84bf68d86e1db1fd2"
 )
 
 val sparkDistUrl: String => String =
@@ -419,4 +419,3 @@ lazy val polynote = project.in(file(".")).aggregate(`polynote-env`, `polynote-ru
       commonSettings,
       commands ++= Seq(dist)
     )
-
