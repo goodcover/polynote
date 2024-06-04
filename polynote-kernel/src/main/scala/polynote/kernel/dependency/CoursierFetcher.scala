@@ -60,7 +60,7 @@ object CoursierFetcher {
     } yield downloaded
   }
 
-  private def loadCredentials(credentials: CredentialsConfig): URIO[Logging, List[DirectCredentials]] = credentials.coursier match {
+  private[kernel] def loadCredentials(credentials: CredentialsConfig): URIO[Logging, List[DirectCredentials]] = credentials.coursier match {
     case Some(CredentialsConfig.Coursier(path)) =>
       Task(CoursierCredentials(new File(path), optional = false).get().toList)
         .catchAll(err => Logging.error("Failed to load credentials", err).as(Nil))
