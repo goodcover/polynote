@@ -1,4 +1,7 @@
 package polynote.kernel
+
+import coursier.credentials.{DirectCredentials, Credentials => CoursierCredentials}
+
 import java.io.File
 import java.nio.file.{FileSystems, Files}
 import java.util.concurrent.{Executors, ThreadFactory}
@@ -7,7 +10,7 @@ import java.util.regex.Pattern
 import org.apache.spark.SparkEnv
 import org.apache.spark.sql.SparkSession
 import polynote.buildinfo.BuildInfo
-import polynote.config.{PolynoteConfig, SparkConfig}
+import polynote.config.{Credentials, PolynoteConfig, SparkConfig}
 import polynote.kernel.dependency.{Artifact, CoursierFetcher}
 import polynote.kernel.environment.{Config, CurrentNotebook, CurrentTask, Env}
 import polynote.kernel.interpreter.scal.{ScalaInterpreter, ScalaSparkInterpreter}
@@ -25,6 +28,7 @@ import zio.system.System
 import zio.stream.SubscriptionRef
 import zio.system.{env, property}
 
+import java.net.URI
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.reflect.internal.util.AbstractFileClassLoader
@@ -120,6 +124,7 @@ class LocalSparkKernelFactory extends Kernel.Factory.LocalService {
   }
 
   def apply(): RIO[BaseEnv with GlobalEnv with CellEnv, Kernel] = for {
+    polynoteConfig   <- Config.access
     scalaDeps        <- CoursierFetcher.fetch("scala")
     sparkRuntimeJar   = new File(pathOf(classOf[SparkReprsOf[_]]).getPath)
     sparkClasspath   <- (sparkClasspath orElse systemClasspath).option.map(_.getOrElse(Nil))
@@ -127,7 +132,8 @@ class LocalSparkKernelFactory extends Kernel.Factory.LocalService {
     sparkJars         = (sparkRuntimeJar :: ScalaCompiler.requiredPolynotePaths).map(f => f.toString -> f) ::: scalaDeps.map {a => (a.url, a.file) }
     compiler         <- ScalaCompiler(Artifact(false, sparkRuntimeJar.toURI.toString, sparkRuntimeJar, None) :: scalaDeps, sparkClasspath, updateSettings _)
     classLoader       = compiler.classLoader
-    session          <- startSparkSession(sparkJars, classLoader)
+    credentials      <- CoursierFetcher.loadCredentials(polynoteConfig.credentials)
+    session          <- startSparkSession(sparkJars, classLoader, credentials)
     busyState        <- SubscriptionRef.make(KernelBusyState(busy = true, alive = true))
     interpreters     <- RefMap.empty[String, Interpreter]
     scalaInterpreter <- interpreters.getOrCreate("scala")(ScalaSparkInterpreter().provideSomeLayer[BaseEnv with Config with TaskManager](ZLayer.succeed(compiler)))
@@ -135,12 +141,14 @@ class LocalSparkKernelFactory extends Kernel.Factory.LocalService {
     closed           <- Promise.make[Throwable, Unit]
   } yield new LocalSparkKernel(compiler, session, interpState, interpreters, busyState, closed)
 
-  private def startSparkSession(deps: List[(String, File)], classLoader: ClassLoader): RIO[BaseEnv with GlobalEnv with CellEnv, SparkSession] = {
+  private def startSparkSession(deps: List[(String, File)], classLoader: ClassLoader, directCredentials: List[DirectCredentials]): RIO[BaseEnv with GlobalEnv with CellEnv, SparkSession] = {
 
-    // TODO: config option for using downloaded deps vs. giving the urls
-    //       for now we'll just give Spark the urls to the deps
-    val jars = deps.map(_._1)
+    val passwordProtectedHosts = directCredentials.map(_.host).toSet
 
+    val jars = deps.map { case (url, file) =>
+      if (passwordProtectedHosts.contains(URI.create(url).getHost)) file.getAbsolutePath
+      else url
+    }
     /**
       * We create a dedicated [[Executor]] for starting Spark, so that its context classloader can be fixed to the
       * notebook's class loader. This is necessary so that classes defined by the notebook (and dependencies) can be
