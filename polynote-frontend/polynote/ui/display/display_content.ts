@@ -342,7 +342,7 @@ export function displaySchema(structType: StructType): HTMLElement {
 function buildContainerFrame(content: string): HTMLIFrameElement {
     const doc = document.implementation.createHTMLDocument("Polynote output container");
     const head = doc.documentElement.appendChild(doc.createElement('head'));
-    [...document.head.getElementsByTagName('link')].forEach((stylesheet: HTMLLinkElement) => {
+    [...document.head.getElementsByTagName('link')].concat([...document.head.getElementsByTagName('base')]).forEach((stylesheet: HTMLLinkElement) => {
         const link = doc.importNode(stylesheet, true);
         link.href = new URL(link.href, document.location.href).href;
         head.appendChild(link);
