@@ -341,10 +341,9 @@ export function displaySchema(structType: StructType): HTMLElement {
  */
 function buildContainerFrame(content: string): HTMLIFrameElement {
     const doc = document.implementation.createHTMLDocument("Polynote output container");
-    const head = doc.documentElement.appendChild(doc.createElement('head'));
-    [...document.head.getElementsByTagName('link')].concat([...document.head.getElementsByTagName('base')]).forEach((stylesheet: HTMLLinkElement) => {
+    const head = doc.head;
+    [...document.head.getElementsByTagName('link')].forEach((stylesheet: HTMLLinkElement) => {
         const link = doc.importNode(stylesheet, true);
-        link.href = new URL(link.href, document.location.href).href;
         head.appendChild(link);
     });
     const style = head.appendChild(doc.createElement('style'));
@@ -355,6 +354,10 @@ function buildContainerFrame(content: string): HTMLIFrameElement {
     // apparently Monaco adds a bazillion style elements to the page...
     [...document.head.getElementsByTagName("style")].forEach(style => {
         const s = doc.importNode(style, true)
+        head.appendChild(s)
+    });
+    [...document.head.getElementsByTagName('base')].forEach(base => {
+        const s = doc.importNode(base, true)
         head.appendChild(s)
     })
     const body = doc.documentElement.appendChild(doc.createElement('body'));
